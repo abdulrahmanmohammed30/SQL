@@ -140,13 +140,12 @@ CREATE TABLE Departments (
 );
 GO
 
-CREATE TABLE EmployeeProjects (
+CREATE TABLE Projects (
     ProjectID INT IDENTITY(1,1) PRIMARY KEY,
     EmployeeID INT,
     ProjectName NVARCHAR(100) NOT NULL,
     StartDate DATE,
     EndDate DATE,
-    FOREIGN KEY (EmployeeID) REFERENCES Employees(EmployeeID)
 );
 GO
 
@@ -241,12 +240,12 @@ GO
 sp_rename 'EmployeeProjects', 'Projects'
 GO
 
-CREATE TABLE EmployeeProjects (
-    EmployeeID INT NOT NULL,                   -- The employee's ID (foreign key)
-    ProjectID INT NOT NULL,                    -- The project's ID (foreign key)
-    PRIMARY KEY (EmployeeID, ProjectID),      -- Composite primary key for many-to-many relation
-    FOREIGN KEY (EmployeeID) REFERENCES Employees(EmployeeID),  -- Assuming there's an Employees table
-    FOREIGN KEY (ProjectID) REFERENCES Projects(ProjectID)      -- References the Projects table
+create TABLE EmployeeProjects (
+    EmployeeID INT NOT NULL,                  
+    ProjectID INT NOT NULL,                    
+    PRIMARY KEY (EmployeeID, ProjectID),      
+    FOREIGN KEY (EmployeeID) REFERENCES Employees(EmployeeID) on update cascade on delete cascade, 
+    FOREIGN KEY (ProjectID) REFERENCES Projects(ProjectID) on update cascade on delete cascade
 );
 GO
 
@@ -312,8 +311,8 @@ BEGIN TRY
 END TRY
 
 BEGIN CATCH 
-   DECLARE @ErrorNumber INT = ERROR_NUMBER();
    	    ROllback TRANSACTION
+        DECLARE @ErrorNumber INT = ERROR_NUMBER();
         DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
         DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
         DECLARE @ErrorState INT = ERROR_STATE();
@@ -389,3 +388,58 @@ Exec CreateNewProjectAndAssignEmployees
 			@EndDate = null,
 			@EmployeeIDs = @EmployeesIDs
 select EmployeeID, ProjectID from EmployeeProjects
+
+
+
+create proc TransferEmployeesBetweenProjects @OldProjectID INT, @NewProjectID INT 
+as 
+BEGIN
+BEGIN TRANSACTION 
+BEGIN TRY
+	declare @EmployeeIds EmployeeIdsTable  
+
+	insert into @EmployeeIds(EmployeeID)
+	select EmployeeID from EmployeeProjects
+	where ProjectID= @OldProjectID
+
+	delete from EmployeeProjects
+	where  ProjectID= @OldProjectID
+
+	insert into EmployeeProjects(EmployeeID, ProjectID)
+	select EmployeeID, @NewProjectID from @EmployeeIds
+	where not exists (select 1 from EmployeeProjects ep where ep.EmployeeID = EmployeeID and ep.ProjectID=@NewProjectID)
+    COMMIT TRANSACTION
+END TRY 
+BEGIN CATCH
+        ROllback TRANSACTION
+        DECLARE @ErrorNumber INT = ERROR_NUMBER();
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+        DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
+        DECLARE @ErrorState INT = ERROR_STATE();
+        DECLARE @ErrorLine INT = ERROR_LINE();
+        DECLARE @ErrorProcedure NVARCHAR(128) = ERROR_PROCEDURE();
+
+        PRINT 'Error occurred while deleting the employee.';
+        PRINT 'Error Number: ' + CAST(@ErrorNumber AS NVARCHAR(10));
+        PRINT 'Error Message: ' + @ErrorMessage;
+        PRINT 'Error Severity: ' + CAST(@ErrorSeverity AS NVARCHAR(10));
+        PRINT 'Error State: ' + CAST(@ErrorState AS NVARCHAR(10));
+        PRINT 'Error Line: ' + CAST(@ErrorLine AS NVARCHAR(10));
+        PRINT 'Error Procedure: ' + ISNULL(@ErrorProcedure, 'N/A');
+END CATCH
+END 
+GO
+
+
+exec TransferEmployeesBetweenProjects @OldProjectID=11, @NewProjectID=17 
+select * from EmployeeProjects where ProjectID =17
+
+
+create proc CalculateDeparmentSalaryTotals 
+as 
+BEGIN
+ select DepartmentID, sum(salary) 
+ from Employees
+ group by DepartmentID
+END 
+
