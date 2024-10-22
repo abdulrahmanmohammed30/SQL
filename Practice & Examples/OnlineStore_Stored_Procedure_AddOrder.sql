@@ -24,7 +24,8 @@ as
 BEGIN 
    if @CustomerID is null or 
       @OrderDatetime is null or 
-	  @ShippingMethod is null
+	  @ShippingMethod is null or 
+	  LTRIM(RTRIM(@ShippingMethod)) = ''
 	  BEGIN
 	     PRINT 'Some of the parameters are null'
 		 return 
@@ -64,7 +65,7 @@ BEGIN
 		   BEGIN
 		     PRINT 'There is no product with id: '+@ProductID
 			 Select 'Aborting Adding The Order' 
-			 THROW 
+			 THROW	
 		   END 
 
 		 if @ProductActualQuantity < @Quantity
@@ -98,9 +99,12 @@ BEGIN
 	  END TRY 
 	  BEGIN CATCH 
 	   PRINT 'Could not add the order '
-	   ROLLBACK 
+	  IF XACT_STATE() <> 0 
+        ROLLBACK
+ROLLBACK 
 	  END CATCH 
 END 
+
 
 DECLARE @OrderItems OrderItems
 INSERT INTO @OrderItems (ProductID, Quantity, UnitPrice)
@@ -147,4 +151,72 @@ EXEC AddOrder
 
 PRINT 'Total Order Amount: ' + CAST(@TotalAmount AS NVARCHAR(20))
 
+-- Another soltion that a SET Based Operation instead of the cursor
+CREATE OR ALTER PROC AddOrder2
+	@CustomerID INT,
+	@OrderDatetime datetime2,
+	@ShippingMethod nvarchar(50),
+	@OrderItems OrderItems READONLY,
+	@TotalOrderAmount decimal(19,4) OUTPUT
+as 
+BEGIN 
+   if @CustomerID is null or 
+      @OrderDatetime is null or 
+	  @ShippingMethod is null or 
+	  LTRIM(RTRIM(@ShippingMethod)) = ''
+	  BEGIN
+	     PRINT 'Some of the parameters are null'
+		 return 
+	  END 
 
+	 BEGIN TRANSACTION
+
+BEGIN TRY
+    -- Insert the order
+    INSERT INTO Orders (CustomerID, OrderDatetime, ShippingMethod)
+    VALUES (@CustomerID, @OrderDatetime, @ShippingMethod);
+
+    DECLARE @NewOrderId INT = SCOPE_IDENTITY();
+
+    -- Step 1: Validate all order items before proceeding with updates
+    IF EXISTS (
+        SELECT 1 
+        FROM @OrderItems OI
+        LEFT JOIN Products P ON OI.ProductID = P.ProductID
+        WHERE P.ProductID IS NULL 
+           OR P.Quantity < OI.Quantity 
+           OR P.Price != OI.UnitPrice
+    )
+    BEGIN
+        -- Check if any validation failed
+        THROW 50000, 'Invalid product information or insufficient stock in one or more items.', 1;
+    END
+
+    -- Step 2: If validation passes, proceed with updates
+    -- Update the product quantities
+    UPDATE P
+    SET P.Quantity = P.Quantity - OI.Quantity
+    FROM Products P
+    INNER JOIN @OrderItems OI ON P.ProductID = OI.ProductID;
+
+    -- Insert all items into OrderProducts
+    INSERT INTO OrderProducts (OrderID, ProductID, Quantity, UnitPrice)
+    SELECT @NewOrderId, OI.ProductID, OI.Quantity, OI.UnitPrice
+    FROM @OrderItems OI;
+
+    -- Calculate the total order amount
+    SELECT @TotalOrderAmount = SUM(OI.Quantity * OI.UnitPrice)
+    FROM @OrderItems OI;
+
+    COMMIT;
+END TRY
+
+BEGIN CATCH
+    IF XACT_STATE() <> 0
+        ROLLBACK;
+
+    -- Re-raise the error
+    THROW;
+END CATCH
+
+END 
