@@ -61,6 +61,61 @@ CREATE TABLE UserInterests (
 )
 GO
 
+CREATE TABLE Friendships (
+    FriendshipID INT NOT NULL Identity(1,1),
+    UserID1 INT NOT NULL,
+    UserID2 INT NOT NULL,
+    FriendshipStatus VARCHAR(10) CHECK(FriendshipStatus IN ('requested', 'accepted', 'blocked', 'terminated')),
+    CreatedAt DATETIME2 NOT NULL DEFAULT GETDATE(),
+    UpdatedAt DATETIME2 NOT NULL DEFAULT GETDATE(),
+    
+    CONSTRAINT PK_Friendships PRIMARY KEY(FriendshipID),
+    CONSTRAINT CK_Friendships_NoSelfReference CHECK(UserID1 <> UserID2),
+    CONSTRAINT FK_Friendships_Users_1 FOREIGN KEY (UserID1) REFERENCES Users(UserID) ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT FK_Friendships_Users_2 FOREIGN KEY (UserID2) REFERENCES Users(UserID) ON UPDATE NO ACTION ON DELETE NO ACTION,
+    CONSTRAINT UQ_Friendships_UserID1_UserID2 UNIQUE(UserID1, UserID2)
+)
+GO
+
+CREATE TABLE PrivateMessages (
+    MessageID INT NOT NULL IDENTITY(1,1),
+    SenderID INT,
+    ReceiverID INT,
+    Content NVARCHAR(MAX) NOT NULL CHECK(LTRIM(RTRIM(Content)) <> ''),
+    SentDate DATETIME2 NOT NULL DEFAULT GETDATE(),
+    IsRead BIT NOT NULL DEFAULT 0,
+
+    CONSTRAINT PK_PrivateMessages PRIMARY KEY(MessageID),
+    CONSTRAINT FK_PrivateMessages_Users_Sender FOREIGN KEY(SenderID) REFERENCES Users(UserID) ,
+    CONSTRAINT FK_PrivateMessages_Users_Receiver FOREIGN KEY(ReceiverID) REFERENCES Users(UserID)
+)
+GO
+
+CREATE TABLE Notifications (
+    NotificationID INT NOT NULL IDENTITY(1,1),
+    UserID INT NOT NULL,
+    Type VARCHAR(255) NOT NULL,
+    CreatedAt DATETIME2 NOT NULL DEFAULT GETDATE(),
+    IsRead BIT NOT NULL DEFAULT 0,
+
+    CONSTRAINT PK_Notifications PRIMARY KEY (NotificationID),
+    CONSTRAINT FK_Notifications_Users FOREIGN KEY(UserID) REFERENCES Users(UserID)
+)
+GO
+
+CREATE TABLE PostTypes (
+   PostTypeID TINYINT NOT NULL IDENTITY(1,1), 
+   PostTypeText VARCHAR(15) NOT NULL,
+
+   CONSTRAINT PK_PostTypes PRIMARY KEY(PostTypeID), 
+   CONSTRAINT UQ_PostTypes_PostType UNIQUE(PostTypeText) 
+)
+GO 
+
+INSERT INTO PostTypes(PostTypeText) VALUES( 'Group'), ('Profile');
+GO 
+
+
 CREATE TABLE Posts
 (
     PostID INT,
@@ -76,6 +131,14 @@ CREATE TABLE Posts
     CONSTRAINT PK_Posts PRIMARY KEY(PostID),
     CONSTRAINT FK_Posts_Users FOREIGN KEY (UserID) REFERENCES Users(UserID) ON UPDATE CASCADE ON DELETE SET NULL
 );
+GO
+
+ALTER TABLE Posts 
+Add PostTypeID TINYINT CONSTRAINT FK_Posts_PostTypes FOREIGN KEY (PostTypeID) REFERENCES PostTypes(PostTypeID)
+GO
+
+ALTER TABLE Posts
+Add GroupID INT CONSTRAINT FK_Posts_Groups FOREIGN KEY (GroupID) REFERENCES GROUPS(GroupID) 
 GO
 
 CREATE TABLE Tags
@@ -99,21 +162,6 @@ CREATE TABLE PostTags
 )
 GO
 
-CREATE TABLE Friendships (
-    FriendshipID INT NOT NULL Identity(1,1),
-    UserID1 INT NOT NULL,
-    UserID2 INT NOT NULL,
-    FriendshipStatus VARCHAR(10) CHECK(FriendshipStatus IN ('requested', 'accepted', 'blocked', 'terminated')),
-    CreatedAt DATETIME2 NOT NULL DEFAULT GETDATE(),
-    UpdatedAt DATETIME2 NOT NULL DEFAULT GETDATE(),
-    
-    CONSTRAINT PK_Friendships PRIMARY KEY(FriendshipID),
-    CONSTRAINT CK_Friendships_NoSelfReference CHECK(UserID1 <> UserID2),
-    CONSTRAINT FK_Friendships_Users_1 FOREIGN KEY (UserID1) REFERENCES Users(UserID) ON UPDATE CASCADE ON DELETE CASCADE,
-    CONSTRAINT FK_Friendships_Users_2 FOREIGN KEY (UserID2) REFERENCES Users(UserID) ON UPDATE NO ACTION ON DELETE NO ACTION,
-    CONSTRAINT UQ_Friendships_UserID1_UserID2 UNIQUE(UserID1, UserID2)
-)
-GO
 
 CREATE TABLE PostComments (
     CommentID INT NOT NULL IDENTITY(1,1),
@@ -145,31 +193,6 @@ CREATE TABLE PostLikes (
 );
 GO
 
-CREATE TABLE PrivateMessages (
-    MessageID INT NOT NULL IDENTITY(1,1),
-    SenderID INT,
-    ReceiverID INT,
-    Content NVARCHAR(MAX) NOT NULL CHECK(LTRIM(RTRIM(Content)) <> ''),
-    SentDate DATETIME2 NOT NULL DEFAULT GETDATE(),
-    IsRead BIT NOT NULL DEFAULT 0,
-
-    CONSTRAINT PK_PrivateMessages PRIMARY KEY(MessageID),
-    CONSTRAINT FK_PrivateMessages_Users_Sender FOREIGN KEY(SenderID) REFERENCES Users(UserID) ,
-    CONSTRAINT FK_PrivateMessages_Users_Receiver FOREIGN KEY(ReceiverID) REFERENCES Users(UserID)
-)
-GO
-
-CREATE TABLE Notifications (
-    NotificationID INT NOT NULL IDENTITY(1,1),
-    UserID INT NOT NULL,
-    Type VARCHAR(255) NOT NULL,
-    CreatedAt DATETIME2 NOT NULL DEFAULT GETDATE(),
-    IsRead BIT NOT NULL DEFAULT 0,
-
-    CONSTRAINT PK_Notifications PRIMARY KEY (NotificationID),
-    CONSTRAINT FK_Notifications_Users FOREIGN KEY(UserID) REFERENCES Users(UserID)
-)
-GO
 
 CREATE TABLE Groups (
     GroupID INT NOT NULL IDENTITY(1,1),
@@ -199,7 +222,7 @@ CREATE TABLE GroupMembers (
 )
 GO
 
-CREATE TABLE GroupPosts(
+drop TABLE GroupPosts(
 	GroupPostID INT NOT NULL, 
 	PostID INT NOT NULL, 
 	GroupID INT NOT NULL, 
@@ -208,6 +231,7 @@ CREATE TABLE GroupPosts(
 	CONSTRAINT FK_GroupPosts_Users FOREIGN KEY (GroupID) References Groups(GroupID)
 )
 GO 
+
 
 CREATE TABLE ErrorLogs (
     ErrorLogID INT NOT NULL IDENTITY(1,1),
