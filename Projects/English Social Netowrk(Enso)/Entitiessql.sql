@@ -232,7 +232,6 @@ drop TABLE GroupPosts(
 )
 GO 
 
-
 CREATE TABLE ErrorLogs (
     ErrorLogID INT NOT NULL IDENTITY(1,1),
     ErrorTime DATETIME NOT NULL,
