@@ -209,6 +209,9 @@ CREATE TABLE Groups (
 )
 GO
 
+ALTER TABLE ContentManagement.Groups 
+ADD PostsCount INT NOT NULL DEFAULT 0
+
 CREATE TABLE GroupMembers (
     GroupMemberID INT NOT NULL IDENTITY(1,1),
     GroupID INT NOT NULL,
@@ -246,3 +249,4 @@ CREATE TABLE ErrorLogs (
     CONSTRAINT PK_ErrorLogs PRIMARY KEY(ErrorLogID)
 );
 GO
+
