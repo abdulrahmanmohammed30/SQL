@@ -11,8 +11,7 @@ with
 
 select d.department_name, re.name, re.salary
 from ranked_employees re
-
     join department d
     on re.department_id = d.department_id
 where rank <= 3
-order by d.department_name asc, re.salary desc, re.name asc
+order by d.department_name asc, re.salary desc, re.name asc 
