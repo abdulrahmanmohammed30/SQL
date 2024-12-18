@@ -2,8 +2,8 @@ With
     cte1
     as
     (
-                    Select success_date as start_date,
-                success_date as end_date
+            Select success_date as start_date,
+            success_date as end_date
             From succeeded
             where Year(success_date) = 2019
         Union all
