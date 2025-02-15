@@ -19,3 +19,6 @@ from
 	group by user1 
 )x, totalFriends
 order by user1 
+
+
+select * from users  
